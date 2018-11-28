@@ -12,7 +12,6 @@ import octoprint.plugin
 import octoprint.util
 
 from Crypto.Cipher import AES
-from Crypto import Random
 from requests import ConnectionError
 
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
@@ -84,7 +83,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         except RuntimeError as ex:
             self._logger.error(str(ex))
 
-        except ConnectionError as ex:
+        except ConnectionError:
             self._logger.error('Unable to connect to the Volta Server (%s).' % self._settings.get(['api_url']))
 
         self._logger.warning(
@@ -412,7 +411,6 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
             # Encrypt the printer ID
             # Generate an Initialization Vector
-            iv = Random.new().read(AES.block_size)
             iv = self._settings.get(['api_token'])[:AES.block_size]
             cipher = AES.new(self._settings.get(['api_token']), AES.MODE_CFB, iv)
 
