@@ -53,9 +53,6 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self._logger.info('Verifying connection to %s...' % __plugin_name__)
 
-        if not self._settings.get(['api_token']):
-            raise ValueError('No API Token provided')
-
         try:
             headers = {
                 'Accept': 'application/json',
@@ -386,6 +383,9 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         try:
+            if not self._settings.get(['api_token']):
+                raise ValueError('No API Token provided')
+
             printer = self._printer_profile_manager.get_current_or_default()
 
             self._printer_state['name'] = printer['model'] if 'model' in printer else self.STATE_UNKNOWN
