@@ -1,0 +1,4 @@
+include README.md
+recursive-include octoprint_volta/templates *
+recursive-include octoprint_volta/translations *
+recursive-include octoprint_volta/static *
