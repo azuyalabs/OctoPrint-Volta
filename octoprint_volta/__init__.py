@@ -33,7 +33,6 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self._printer_state = {
             'id': '',
             'name': '',
-            'printer': '',
             'state': '',
             'heatbed_temperature': {},
             'extruder_temperature': {},
