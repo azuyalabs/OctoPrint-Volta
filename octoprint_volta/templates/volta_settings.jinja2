@@ -1,0 +1,17 @@
+<h3>{{ _('Volta Configuration') }}</h3>
+
+{% trans %}
+<h5 style="color: red">Caution! This plugin is still at an early stage of development. Things may break...</h5>
+<p>To use this plugin you need a Volta account and associated API Token. To learn more, please visit the <a href="http://volta.azuya.studio/" target="_blank">Volta</a> website.</p>
+{% endtrans %}
+
+<form class="form-horizontal">
+
+    <div class="control-group">
+        <label class="control-label">{{ _('API Token') }}</label>
+        <div class="controls" title="The secret API Token for the Volta service">
+            <input type="text" class="input-block-level" id="api_token" data-bind="value: settings.plugins.volta.api_token">
+        </div>
+    </div>
+
+</form>
