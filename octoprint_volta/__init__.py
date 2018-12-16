@@ -16,7 +16,7 @@ from requests import ConnectionError
 
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
-__copyright__ = 'Copyright (C) 2018 Volta - Released under the terms of the AGPLv3 License'
+__copyright__ = 'Copyright (C) 2018 AzuyaLabs - Released under the terms of the AGPLv3 License'
 
 
 class VoltaPlugin(octoprint.plugin.SettingsPlugin,
@@ -58,7 +58,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                 'Authorization': 'Bearer ' + self._settings.get(['api_token'])
             }
             r = requests.get(
-                self._settings.get(['api_url']) + '/api/printer/verify', headers=headers)
+                self._settings.get(['api_server']) + '/api/printer/verify', headers=headers)
 
             # Check for proper responses (200 and 401)
             if r is not None and r.status_code not in [200, 401]:
@@ -80,7 +80,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
             self._logger.error(str(ex))
 
         except ConnectionError:
-            self._logger.error('Unable to connect to the Volta Server (%s).' % self._settings.get(['api_url']))
+            self._logger.error('Unable to connect to the Volta Server (%s).' % self._settings.get(['api_server']))
 
         self._logger.warning(
             'Verification was unsuccessful. Please check if a correct API Token was provided.')
@@ -135,7 +135,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
             self._logger.debug('Attempt: %s' % str(i + 1))
 
             try:
-                r = requests.post(self._settings.get(['api_url']) + '/api/printer/monitor',
+                r = requests.post(self._settings.get(['api_server']) + '/api/printer/monitor',
                                   json=self._printer_state, headers=headers)
 
                 if r is not None and r.status_code == 200:
@@ -485,7 +485,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
     def get_settings_defaults(self):
         return dict(
-            api_url='http://volta.azuya.studio',  # Volta Endpoint (Temporary. This may change in the future!)
+            api_server='http://volta.azuya.studio',
             api_token='Volta API Token',
             retry=1,
             time_retry=2,
