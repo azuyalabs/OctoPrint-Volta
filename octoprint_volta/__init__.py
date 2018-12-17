@@ -216,7 +216,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                     extrudertemperature_target) if extrudertemperature_target is not None else 0
 
         except (KeyError, ValueError) as ex:
-           self._logger.error(str(ex))
+            self._logger.error(str(ex))
 
     def __get_printjob_state(self):
         """
@@ -379,9 +379,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         Initializes the (required) printer state parameters upon startup of
         OctoPrint.
 
-        :param host: the number of tries for sending the message
-        :param port: the number of seconds to wait before the next attempt to
-                     send a message
+        :param host: the name of the host on which this OctoPrint instance is running
+        :param port: the port on which this OctoPrint instance is running
         :returns: void
         """
 
