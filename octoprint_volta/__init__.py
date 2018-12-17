@@ -38,6 +38,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
             'extruder_temperature': {},
             'printjob': {},
         }
+        self._port = 0
 
     def __verify_volta(self):
         """
@@ -49,6 +50,53 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :raises RuntimeError: When an error occurred communicating with the
                               Volta REST API
         """
+
+        try:
+            if not self._settings.get(['api_token']):
+                raise ValueError('No API Token provided')
+
+            printer = self._printer_profile_manager.get_current_or_default()
+
+            self._printer_state['name'] = printer['model'] if 'model' in printer else self.STATE_UNKNOWN
+
+            # Get the IP address of this OctoPrint instance
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                # Doesn't even have to be reachable
+                s.connect(('10.255.255.255', 1))
+                server = s.getsockname()[0]
+            except Exception as ex:
+                self._logger.exception('Caught Exception: %s' % str(ex))
+                server = '127.0.0.1'
+            finally:
+                s.close()
+
+            # Snake Case Printer Name
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', printer['name'])
+            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+            printer_address = s2.replace(
+                ' ', '_') + '@' + server + ':' + str(self._port)
+
+            # Encrypt the printer ID
+            # Generate an Initialization Vector
+            iv = self._settings.get(['api_token'])[:AES.block_size]
+            cipher = AES.new(self._settings.get(['api_token']), AES.MODE_CFB, iv)
+
+            # Encrypt the data using AES 256 encryption in CBC mode using the
+            # key and Initialization Vector.
+            encrypted = cipher.encrypt(printer_address)
+
+            # The IV is just as important as the key for decrypting, so save
+            # it with encrypted data using a unique separator (::)
+            self._printer_state['id'] = base64.urlsafe_b64encode(
+                encrypted + '::' + iv)
+
+            self.__get_current_printer_state()
+
+        except (KeyError, ValueError) as e:
+            self._logger.error(str(e))
+            return False
 
         self._logger.info('Verifying connection to %s...' % __plugin_name__)
 
@@ -97,7 +145,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         # Don't send a message if we haven't been verified (yet)
-        if not self._verified:
+        if not self._verified and not self.__verify_volta():
             return
 
         # Send the message async
@@ -374,66 +422,25 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.PrintPaused(payload)
 
+    def on_after_startup(self):
+        """
+        Send first notification after startup of OctoPrint. This will initialize
+        the printer state parameters if that's not been taken care of yet.
+
+        :returns: void
+        """
+        self.__notify_event()
+
     def on_startup(self, host, port):
         """
-        Initializes the (required) printer state parameters upon startup of
-        OctoPrint.
+        Keep the port number this OctoPrint instance is running on
 
         :param host: the name of the host on which this OctoPrint instance is running
         :param port: the port on which this OctoPrint instance is running
         :returns: void
         """
 
-        try:
-            if not self._settings.get(['api_token']):
-                raise ValueError('No API Token provided')
-
-            printer = self._printer_profile_manager.get_current_or_default()
-
-            self._printer_state['name'] = printer['model'] if 'model' in printer else self.STATE_UNKNOWN
-
-            # Get the IP address of this OctoPrint instance
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                # Doesn't even have to be reachable
-                s.connect(('10.255.255.255', 1))
-                server = s.getsockname()[0]
-            except Exception as ex:
-                self._logger.exception('Caught Exception: %s' % str(ex))
-                server = '127.0.0.1'
-            finally:
-                s.close()
-
-            # Snake Case Printer Name
-            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', printer['name'])
-            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
-            printer_address = s2.replace(
-                ' ', '_') + '@' + server + ':' + str(port)
-
-            # Encrypt the printer ID
-            # Generate an Initialization Vector
-            iv = self._settings.get(['api_token'])[:AES.block_size]
-            cipher = AES.new(self._settings.get(['api_token']), AES.MODE_CFB, iv)
-
-            # Encrypt the data using AES 256 encryption in CBC mode using the
-            # key and Initialization Vector.
-            encrypted = cipher.encrypt(printer_address)
-
-            # The IV is just as important as the key for decrypting, so save
-            # it with encrypted data using a unique separator (::)
-            self._printer_state['id'] = base64.urlsafe_b64encode(
-                encrypted + '::' + iv)
-
-            self.__get_current_printer_state()
-
-            # Verify the connection to the Volta REST API and send the initial
-            # state
-            self.__verify_volta()
-            self.__notify_event()
-
-        except (KeyError, ValueError) as e:
-            self._logger.error(str(e))
+        self._port = port
 
     def on_event(self, event, payload):
         """
@@ -477,14 +484,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
     def on_settings_save(self, data):
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
-        try:
-            thread = threading.Thread(
-                target=self.__verify_volta, args=())
-            thread.daemon = True
-            thread.start()
-
-        except Exception as ex:
-            self._logger.exception('Caught an exception ' + str(ex))
+        self._verified = False
 
     def get_settings_defaults(self):
         return dict(
