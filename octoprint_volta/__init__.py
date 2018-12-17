@@ -185,34 +185,38 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
+        self._printer_state['heatbed_temperature'] = {}
+        self._printer_state['extruder_temperature'] = {}
+
+        self._printer_state['heatbed_temperature']['current'] = 0
+        self._printer_state['heatbed_temperature']['target'] = 0
+        self._printer_state['extruder_temperature']['current'] = 0
+        self._printer_state['extruder_temperature']['target'] = 0
+
         try:
             temperatures = self._printer.get_current_temperatures()
 
-            self._printer_state['heatbed_temperature'] = {}
-            self._printer_state['extruder_temperature'] = {}
-
             # ~ Retrieve the heatbed temperatures
-            heatbedtemperature_current = temperatures['bed']['actual']
-            self._printer_state['heatbed_temperature']['current'] = int(
-                heatbedtemperature_current) if heatbedtemperature_current is not None else 0
-            heatbedtemperature_target = temperatures['bed']['target']
-            self._printer_state['heatbed_temperature']['target'] = int(
-                heatbedtemperature_target) if heatbedtemperature_target is not None else 0
+            if 'bed' in temperatures:
+                heatbedtemperature_current = temperatures['bed']['actual']
+                self._printer_state['heatbed_temperature']['current'] = int(
+                    heatbedtemperature_current) if heatbedtemperature_current is not None else 0
+
+                heatbedtemperature_target = temperatures['bed']['target']
+                self._printer_state['heatbed_temperature']['target'] = int(
+                    heatbedtemperature_target) if heatbedtemperature_target is not None else 0
 
             # ~ Retrieve the extruder temperatures
-            extrudertemperature_current = temperatures['tool0']['actual']
-            self._printer_state['extruder_temperature']['current'] = int(
-                extrudertemperature_current) if extrudertemperature_current is not None else 0
-            extrudertemperature_target = temperatures['tool0']['target']
-            self._printer_state['extruder_temperature']['target'] = int(
-                extrudertemperature_target) if extrudertemperature_target is not None else 0
+            if 'tool0' in temperatures:
+                extrudertemperature_current = temperatures['tool0']['actual']
+                self._printer_state['extruder_temperature']['current'] = int(
+                    extrudertemperature_current) if extrudertemperature_current is not None else 0
+                extrudertemperature_target = temperatures['tool0']['target']
+                self._printer_state['extruder_temperature']['target'] = int(
+                    extrudertemperature_target) if extrudertemperature_target is not None else 0
 
         except (KeyError, ValueError) as ex:
-            self._logger.error(str(ex))
-            self._printer_state['heatbed_temperature']['current'] = 0
-            self._printer_state['heatbed_temperature']['target'] = 0
-            self._printer_state['extruder_temperature']['current'] = 0
-            self._printer_state['extruder_temperature']['target'] = 0
+           self._logger.error(str(ex))
 
     def __get_printjob_state(self):
         """
