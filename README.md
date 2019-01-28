@@ -1,11 +1,11 @@
-# OctoVolta
+# OctoPrint-Volta
 ***Caution! This plugin is still at an early stage of development (alpha). Things may break...***
 
-OctoVolta allows you to pair your OctoPrint connected 3D Printer with the Volta Dashboard. Volta Dashboard is a realtime online dashboard that shows you the current status of all of your print-job/printers live. All in one easy overview; with other handy information as well.
+OctoPrint-Volta allows you to pair your OctoPrint connected 3D Printer with the Volta Dashboard. Volta Dashboard is a realtime online dashboard that shows you the current status of all of your print-job/printers live. All in one easy overview; with other handy information as well.
 
 Volta Dashboard is currently a (working) prototype and it consists of 15 tiles (5 x 3 grid) that each can hold a widget. Widgets that have been created so far are:
 
-* OctoPrint: Shows the current status of your printjob/printer (this works by means this OctoVolta plugin) 
+* OctoPrint: Shows the current status of your printjob/printer (this works by means this OctoPrint-Volta plugin) 
 * Slicer Releases: Displays the latest release versions of the major slicers
 * Firmware Releases: Displays the latest release versions of the most common 3D printer firmwares
 * Holidays: Upcoming holidays (in case I need to prepare printing some seasonal gifts/toys)

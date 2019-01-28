@@ -103,7 +103,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         try:
             headers = {
                 'Accept': 'application/json',
-                'Authorization': 'Bearer ' + self._settings.get(['api_token'])
+                'Authorization': 'Bearer ' + self._settings.get(['api_token']),
+                'User-Agent': 'OctoPrint-Volta/' + self._plugin_version
             }
             r = requests.get(
                 self._settings.get(['api_server']) + '/api/printer/verify', headers=headers)
@@ -177,7 +178,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         headers = {'Accept': 'application/json',
                    'Authorization': 'Bearer ' + self._settings.get(['api_token']),
-                   'User-Agent': 'OctoVolta/' + self._plugin_version
+                   'User-Agent': 'OctoPrint-Volta/' + self._plugin_version
                    }
 
         for i in range(retry):
