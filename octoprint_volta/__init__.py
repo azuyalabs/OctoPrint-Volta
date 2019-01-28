@@ -16,7 +16,7 @@ from requests import ConnectionError
 
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
-__copyright__ = 'Copyright (C) 2018 AzuyaLabs - Released under the terms of the AGPLv3 License'
+__copyright__ = 'Copyright (C) 2018 - 2019 AzuyaLabs - Released under the terms of the AGPLv3 License'
 
 
 class VoltaPlugin(octoprint.plugin.SettingsPlugin,
@@ -108,7 +108,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
             r = requests.get(
                 self._settings.get(['api_server']) + '/api/printer/verify', headers=headers)
 
-            # Check for proper responses (200 and 401)
+            # Check for proper responses (200 or 401)
             if r is not None and r.status_code not in [200, 401]:
                 raise RuntimeError(
                     'Error while trying to verify the API Token with the %s service (StatusCode: %s)' % (
@@ -176,7 +176,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self._logger.debug('Start sending message...')
 
         headers = {'Accept': 'application/json',
-                   'Authorization': 'Bearer ' + self._settings.get(['api_token'])
+                   'Authorization': 'Bearer ' + self._settings.get(['api_token']),
+                   'User-Agent': 'OctoVolta/' + self._plugin_version
                    }
 
         for i in range(retry):
@@ -188,10 +189,11 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
                 if r is not None and r.status_code == 200:
                     rb = r.json()
+                    self._logger.debug('Message: %s' % self._printer_state)
 
-                    # Message sent successfully
+                    # Message acknowledged
                     if 'status' in rb and rb['status'] == 'ok':
-                        self._logger.info('Message successfully sent')
+                        self._logger.info('Message acknowledged')
                         return
 
                 # Message syntax correct but validation errors
