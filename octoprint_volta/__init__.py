@@ -13,6 +13,7 @@ import octoprint.util
 
 from Crypto.Cipher import AES
 from requests import ConnectionError
+from datetime import datetime
 
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
@@ -27,6 +28,10 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                   octoprint.plugin.ProgressPlugin):
     STATE_UNKNOWN = 'unknown'
     STATE_OFFLINE = 'offline'
+
+    JOB_STATUS_SUCCESS = 'success'
+    JOB_STATUS_FAILED = 'failed'
+    JOB_STATUS_IN_PROGRESS = 'in_progress'
 
     def __init__(self):
         self._verified = False
@@ -338,6 +343,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self._printer_state['state'] = self.STATE_OFFLINE
 
+        self._logger.debug('Shutdown : %s' % str(payload))
+
     def Disconnected(self, payload):
         """
         Updates the printer state when disconnected.
@@ -347,6 +354,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         self._printer_state['state'] = self.STATE_OFFLINE
+
+        self._logger.debug('Disconnected : %s' % str(payload))
 
     def Connected(self, payload):
         """
@@ -359,6 +368,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self.__get_current_printer_state()
         self.__get_current_temperatures()
 
+        self._logger.debug('Connected : %s' % str(payload))
+
     def PrintStarted(self, payload):
         """
         Updates the printer state when a printjob has been started.
@@ -369,7 +380,10 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self.__get_current_printer_state()
         self.__get_current_temperatures()
         self.__get_printjob_state()
-        self._logger.debug('PS : %s' % str(payload))
+        self._printer_state['printjob']['started_at'] = datetime.utcnow().isoformat()
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_IN_PROGRESS
+
+        self._logger.debug('PrintStarted : %s' % str(payload))
 
     def PrintFailed(self, payload):
         """
@@ -379,8 +393,11 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
-        self.__get_printjob_statistics(payload)
         self.__get_current_printer_state()
+        self.__get_printjob_statistics(payload)
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_FAILED
+
+        self._logger.debug('PrintFailed : %s' % str(payload))
 
     def PrintDone(self, payload):
         """
@@ -392,6 +409,9 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.__get_printjob_statistics(payload)
         self.__get_current_printer_state()
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_SUCCESS
+
+        self._logger.debug('PrintDone : %s' % str(payload))
 
     def PrintPaused(self, payload):
         """
@@ -403,6 +423,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.__get_current_printer_state()
 
+        self._logger.debug('PrintPaused : %s' % str(payload))
+
     def PrintResumed(self, payload):
         """
         Updates the printer state when a printjob has been resumed.
@@ -412,6 +434,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         self.__get_current_printer_state()
+
+        self._logger.debug('PrintResumed : %s' % str(payload))
 
     def Waiting(self, payload):
         """
