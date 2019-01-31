@@ -18,7 +18,7 @@ from datetime import datetime
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
 __copyright__ = 'Copyright (C) 2018 - 2019 AzuyaLabs - Released under the terms of the AGPLv3 License'
-
+__plugin_name__ = 'Volta'
 
 class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                   octoprint.plugin.StartupPlugin,
@@ -544,10 +544,6 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                 pip='https://github.com/azuyalabs/OctoPrint-Volta/archive/{target_version}.zip'
             )
         )
-
-
-__plugin_name__ = 'Volta'
-
 
 def __plugin_load__():
     global __plugin_implementation__
