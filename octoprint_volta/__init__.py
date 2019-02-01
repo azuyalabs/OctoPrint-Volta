@@ -20,6 +20,7 @@ __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agp
 __copyright__ = 'Copyright (C) 2018 - 2019 AzuyaLabs - Released under the terms of the AGPLv3 License'
 __plugin_name__ = 'Volta'
 
+
 class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                   octoprint.plugin.StartupPlugin,
                   octoprint.plugin.AssetPlugin,
@@ -199,7 +200,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
                     # Message acknowledged
                     if 'status' in rb and rb['status'] == 'ok':
-                        self._logger.info('Message acknowledged')
+                        self._logger.info('Printer status successfully submitted')
                         return
 
                 # Message syntax correct but validation errors
@@ -544,6 +545,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                 pip='https://github.com/azuyalabs/OctoPrint-Volta/archive/{target_version}.zip'
             )
         )
+
 
 def __plugin_load__():
     global __plugin_implementation__
