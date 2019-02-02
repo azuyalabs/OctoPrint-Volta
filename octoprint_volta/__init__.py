@@ -180,7 +180,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
-        self._logger.debug('Start sending message...')
+        self._logger.debug('Start sending printer status...')
 
         headers = {'Accept': 'application/json',
                    'Authorization': 'Bearer ' + self._settings.get(['api_token']),
@@ -196,7 +196,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
                 if r is not None and r.status_code == 200:
                     rb = r.json()
-                    self._logger.debug('Message: %s' % self._printer_state)
+                    self._logger.debug('Printer status: %s' % self._printer_state)
 
                     # Message acknowledged
                     if 'status' in rb and rb['status'] == 'ok':
@@ -205,7 +205,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
                 # Message syntax correct but validation errors
                 elif r.status_code == 422:
-                    self._logger.error('Invalid message : ' + str(r.json()))
+                    self._logger.error('Invalid printer status message : ' + str(r.json()))
                     return
 
                 # Message syntax correct but validation errors
@@ -219,7 +219,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
             time.sleep(sleep)
 
-        self._logger.debug('Unable to send the message')
+        self._logger.debug('Unable to send the printer status')
 
     def __get_current_printer_state(self):
         """
