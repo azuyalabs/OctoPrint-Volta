@@ -194,7 +194,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                 r = requests.post(self._settings.get(['api_server']) + '/api/printer/monitor',
                                   json=self._printer_state, headers=headers)
 
-                if r is not None and r.status_code == 200:
+                if r is not None and r.status_code == 201:
                     rb = r.json()
                     self._logger.debug('Printer status: %s' % self._printer_state)
 
