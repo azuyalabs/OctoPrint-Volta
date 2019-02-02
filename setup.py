@@ -14,11 +14,11 @@ plugin_package = "octoprint_volta"
 plugin_name = "OctoPrint-Volta"
 
 # The plugin's version. Can be overwritten within OctoPrint's internal data via __plugin_version__ in the plugin module
-plugin_version = "0.1.1"
+plugin_version = "0.2.0"
 
 # The plugin's description. Can be overwritten within OctoPrint's internal data via __plugin_description__ in the plugin
 # module
-plugin_description = """OctoVolta allows you to pair your OctoPrint connected 3D Printer with the Volta Dashboard. Volta Dashboard is a realtime online dashboard that shows you the current status of all of your print-job/printers live. All in one easy overview; with other handy information as well."""
+plugin_description = """OctoPrint-Volta allows you to pair your OctoPrint connected 3D Printer with the Volta Dashboard. Volta Dashboard is a realtime online dashboard that shows you the current status of all of your print-job/printers live. All in one easy overview; with other handy information as well."""
 
 # The plugin's author. Can be overwritten within OctoPrint's internal data via __plugin_author__ in the plugin module
 plugin_author = "Sacha Telgenhof"

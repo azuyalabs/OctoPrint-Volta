@@ -13,10 +13,12 @@ import octoprint.util
 
 from Crypto.Cipher import AES
 from requests import ConnectionError
+from datetime import datetime
 
 __author__ = 'Sacha Telgenhof <me@sachatelgenhof.com>'
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
-__copyright__ = 'Copyright (C) 2018 Volta - Released under the terms of the AGPLv3 License'
+__copyright__ = 'Copyright (C) 2018 - 2019 AzuyaLabs - Released under the terms of the AGPLv3 License'
+__plugin_name__ = 'Volta'
 
 
 class VoltaPlugin(octoprint.plugin.SettingsPlugin,
@@ -28,17 +30,21 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
     STATE_UNKNOWN = 'unknown'
     STATE_OFFLINE = 'offline'
 
+    JOB_STATUS_SUCCESS = 'success'
+    JOB_STATUS_FAILED = 'failed'
+    JOB_STATUS_IN_PROGRESS = 'in_progress'
+
     def __init__(self):
         self._verified = False
         self._printer_state = {
             'id': '',
             'name': '',
-            'printer': '',
             'state': '',
             'heatbed_temperature': {},
             'extruder_temperature': {},
             'printjob': {},
         }
+        self._port = 0
 
     def __verify_volta(self):
         """
@@ -51,17 +57,65 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                               Volta REST API
         """
 
+        try:
+            if not self._settings.get(['api_token']):
+                raise ValueError('No API Token provided')
+
+            printer = self._printer_profile_manager.get_current_or_default()
+
+            self._printer_state['name'] = printer['model'] if 'model' in printer else self.STATE_UNKNOWN
+
+            # Get the IP address of this OctoPrint instance
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                # Doesn't even have to be reachable
+                s.connect(('10.255.255.255', 1))
+                server = s.getsockname()[0]
+            except Exception as ex:
+                self._logger.exception('Caught Exception: %s' % str(ex))
+                server = '127.0.0.1'
+            finally:
+                s.close()
+
+            # Snake Case Printer Name
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', printer['name'])
+            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+            printer_address = s2.replace(
+                ' ', '_') + '@' + server + ':' + str(self._port)
+
+            # Encrypt the printer ID
+            # Generate an Initialization Vector
+            iv = self._settings.get(['api_token'])[:AES.block_size]
+            cipher = AES.new(self._settings.get(['api_token']), AES.MODE_CFB, iv)
+
+            # Encrypt the data using AES 256 encryption in CBC mode using the
+            # key and Initialization Vector.
+            encrypted = cipher.encrypt(printer_address)
+
+            # The IV is just as important as the key for decrypting, so save
+            # it with encrypted data using a unique separator (::)
+            self._printer_state['id'] = base64.urlsafe_b64encode(
+                encrypted + '::' + iv)
+
+            self.__get_current_printer_state()
+
+        except (KeyError, ValueError) as e:
+            self._logger.error(str(e))
+            return False
+
         self._logger.info('Verifying connection to %s...' % __plugin_name__)
 
         try:
             headers = {
                 'Accept': 'application/json',
-                'Authorization': 'Bearer ' + self._settings.get(['api_token'])
+                'Authorization': 'Bearer ' + self._settings.get(['api_token']),
+                'User-Agent': 'OctoPrint-Volta/' + self._plugin_version
             }
             r = requests.get(
-                self._settings.get(['api_url']) + '/api/printer/verify', headers=headers)
+                self._settings.get(['api_server']) + '/api/printer/verify', headers=headers)
 
-            # Check for proper responses (200 and 401)
+            # Check for proper responses (200 or 401)
             if r is not None and r.status_code not in [200, 401]:
                 raise RuntimeError(
                     'Error while trying to verify the API Token with the %s service (StatusCode: %s)' % (
@@ -81,7 +135,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
             self._logger.error(str(ex))
 
         except ConnectionError:
-            self._logger.error('Unable to connect to the Volta Server (%s).' % self._settings.get(['api_url']))
+            self._logger.error('Unable to connect to the Volta Server (%s).' % self._settings.get(['api_server']))
 
         self._logger.warning(
             'Verification was unsuccessful. Please check if a correct API Token was provided.')
@@ -98,7 +152,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         # Don't send a message if we haven't been verified (yet)
-        if not self._verified:
+        if not self._verified and not self.__verify_volta():
             return
 
         # Send the message async
@@ -126,30 +180,32 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
-        self._logger.debug('Start sending message...')
+        self._logger.debug('Start sending printer status...')
 
         headers = {'Accept': 'application/json',
-                   'Authorization': 'Bearer ' + self._settings.get(['api_token'])
+                   'Authorization': 'Bearer ' + self._settings.get(['api_token']),
+                   'User-Agent': 'OctoPrint-Volta/' + self._plugin_version
                    }
 
         for i in range(retry):
             self._logger.debug('Attempt: %s' % str(i + 1))
 
             try:
-                r = requests.post(self._settings.get(['api_url']) + '/api/printer/monitor',
+                r = requests.post(self._settings.get(['api_server']) + '/api/printer/monitor',
                                   json=self._printer_state, headers=headers)
 
-                if r is not None and r.status_code == 200:
+                if r is not None and r.status_code == 201:
                     rb = r.json()
+                    self._logger.debug('Printer status: %s' % self._printer_state)
 
-                    # Message sent successfully
+                    # Message acknowledged
                     if 'status' in rb and rb['status'] == 'ok':
-                        self._logger.info('Message successfully sent')
+                        self._logger.info('Printer status successfully submitted')
                         return
 
                 # Message syntax correct but validation errors
                 elif r.status_code == 422:
-                    self._logger.error('Invalid message : ' + str(r.json()))
+                    self._logger.error('Invalid printer status message : ' + str(r.json()))
                     return
 
                 # Message syntax correct but validation errors
@@ -163,7 +219,7 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
             time.sleep(sleep)
 
-        self._logger.debug('Unable to send the message')
+        self._logger.debug('Unable to send the printer status')
 
     def __get_current_printer_state(self):
         """
@@ -186,34 +242,38 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
+        self._printer_state['heatbed_temperature'] = {}
+        self._printer_state['extruder_temperature'] = {}
+
+        self._printer_state['heatbed_temperature']['current'] = 0
+        self._printer_state['heatbed_temperature']['target'] = 0
+        self._printer_state['extruder_temperature']['current'] = 0
+        self._printer_state['extruder_temperature']['target'] = 0
+
         try:
             temperatures = self._printer.get_current_temperatures()
 
-            self._printer_state['heatbed_temperature'] = {}
-            self._printer_state['extruder_temperature'] = {}
-
             # ~ Retrieve the heatbed temperatures
-            heatbedtemperature_current = temperatures['bed']['actual']
-            self._printer_state['heatbed_temperature']['current'] = int(
-                heatbedtemperature_current) if heatbedtemperature_current is not None else 0
-            heatbedtemperature_target = temperatures['bed']['target']
-            self._printer_state['heatbed_temperature']['target'] = int(
-                heatbedtemperature_target) if heatbedtemperature_target is not None else 0
+            if 'bed' in temperatures:
+                heatbedtemperature_current = temperatures['bed']['actual']
+                self._printer_state['heatbed_temperature']['current'] = int(
+                    heatbedtemperature_current) if heatbedtemperature_current is not None else 0
+
+                heatbedtemperature_target = temperatures['bed']['target']
+                self._printer_state['heatbed_temperature']['target'] = int(
+                    heatbedtemperature_target) if heatbedtemperature_target is not None else 0
 
             # ~ Retrieve the extruder temperatures
-            extrudertemperature_current = temperatures['tool0']['actual']
-            self._printer_state['extruder_temperature']['current'] = int(
-                extrudertemperature_current) if extrudertemperature_current is not None else 0
-            extrudertemperature_target = temperatures['tool0']['target']
-            self._printer_state['extruder_temperature']['target'] = int(
-                extrudertemperature_target) if extrudertemperature_target is not None else 0
+            if 'tool0' in temperatures:
+                extrudertemperature_current = temperatures['tool0']['actual']
+                self._printer_state['extruder_temperature']['current'] = int(
+                    extrudertemperature_current) if extrudertemperature_current is not None else 0
+                extrudertemperature_target = temperatures['tool0']['target']
+                self._printer_state['extruder_temperature']['target'] = int(
+                    extrudertemperature_target) if extrudertemperature_target is not None else 0
 
         except (KeyError, ValueError) as ex:
             self._logger.error(str(ex))
-            self._printer_state['heatbed_temperature']['current'] = 0
-            self._printer_state['heatbed_temperature']['target'] = 0
-            self._printer_state['extruder_temperature']['current'] = 0
-            self._printer_state['extruder_temperature']['target'] = 0
 
     def __get_printjob_state(self):
         """
@@ -284,6 +344,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self._printer_state['state'] = self.STATE_OFFLINE
 
+        self._logger.debug('Shutdown : %s' % str(payload))
+
     def Disconnected(self, payload):
         """
         Updates the printer state when disconnected.
@@ -293,6 +355,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         self._printer_state['state'] = self.STATE_OFFLINE
+
+        self._logger.debug('Disconnected : %s' % str(payload))
 
     def Connected(self, payload):
         """
@@ -305,6 +369,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self.__get_current_printer_state()
         self.__get_current_temperatures()
 
+        self._logger.debug('Connected : %s' % str(payload))
+
     def PrintStarted(self, payload):
         """
         Updates the printer state when a printjob has been started.
@@ -315,7 +381,10 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         self.__get_current_printer_state()
         self.__get_current_temperatures()
         self.__get_printjob_state()
-        self._logger.debug('PS : %s' % str(payload))
+        self._printer_state['printjob']['started_at'] = datetime.utcnow().isoformat()
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_IN_PROGRESS
+
+        self._logger.debug('PrintStarted : %s' % str(payload))
 
     def PrintFailed(self, payload):
         """
@@ -325,8 +394,11 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         :returns: void
         """
 
-        self.__get_printjob_statistics(payload)
         self.__get_current_printer_state()
+        self.__get_printjob_statistics(payload)
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_FAILED
+
+        self._logger.debug('PrintFailed : %s' % str(payload))
 
     def PrintDone(self, payload):
         """
@@ -338,6 +410,9 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.__get_printjob_statistics(payload)
         self.__get_current_printer_state()
+        self._printer_state['printjob']['status'] = self.JOB_STATUS_SUCCESS
+
+        self._logger.debug('PrintDone : %s' % str(payload))
 
     def PrintPaused(self, payload):
         """
@@ -349,6 +424,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.__get_current_printer_state()
 
+        self._logger.debug('PrintPaused : %s' % str(payload))
+
     def PrintResumed(self, payload):
         """
         Updates the printer state when a printjob has been resumed.
@@ -358,6 +435,8 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
         """
 
         self.__get_current_printer_state()
+
+        self._logger.debug('PrintResumed : %s' % str(payload))
 
     def Waiting(self, payload):
         """
@@ -371,67 +450,25 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
         self.PrintPaused(payload)
 
+    def on_after_startup(self):
+        """
+        Send first notification after startup of OctoPrint. This will initialize
+        the printer state parameters if that's not been taken care of yet.
+
+        :returns: void
+        """
+        self.__notify_event()
+
     def on_startup(self, host, port):
         """
-        Initializes the (required) printer state parameters upon startup of
-        OctoPrint.
+        Keep the port number this OctoPrint instance is running on
 
-        :param host: the number of tries for sending the message
-        :param port: the number of seconds to wait before the next attempt to
-                     send a message
+        :param host: the name of the host on which this OctoPrint instance is running
+        :param port: the port on which this OctoPrint instance is running
         :returns: void
         """
 
-        try:
-            if not self._settings.get(['api_token']):
-                raise ValueError('No API Token provided')
-
-            printer = self._printer_profile_manager.get_current_or_default()
-
-            self._printer_state['name'] = printer['model'] if 'model' in printer else self.STATE_UNKNOWN
-
-            # Get the IP address of this OctoPrint instance
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                # Doesn't even have to be reachable
-                s.connect(('10.255.255.255', 1))
-                server = s.getsockname()[0]
-            except Exception as ex:
-                self._logger.exception('Caught Exception: %s' % str(ex))
-                server = '127.0.0.1'
-            finally:
-                s.close()
-
-            # Snake Case Printer Name
-            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', printer['name'])
-            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
-            printer_address = s2.replace(
-                ' ', '_') + '@' + server + ':' + str(port)
-
-            # Encrypt the printer ID
-            # Generate an Initialization Vector
-            iv = self._settings.get(['api_token'])[:AES.block_size]
-            cipher = AES.new(self._settings.get(['api_token']), AES.MODE_CFB, iv)
-
-            # Encrypt the data using AES 256 encryption in CBC mode using the
-            # key and Initialization Vector.
-            encrypted = cipher.encrypt(printer_address)
-
-            # The IV is just as important as the key for decrypting, so save
-            # it with encrypted data using a unique separator (::)
-            self._printer_state['id'] = base64.urlsafe_b64encode(
-                encrypted + '::' + iv)
-
-            self.__get_current_printer_state()
-
-            # Verify the connection to the Volta REST API and send the initial
-            # state
-            self.__verify_volta()
-            self.__notify_event()
-
-        except (KeyError, ValueError) as e:
-            self._logger.error(str(e))
+        self._port = port
 
     def on_event(self, event, payload):
         """
@@ -475,18 +512,11 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
 
     def on_settings_save(self, data):
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
-        try:
-            thread = threading.Thread(
-                target=self.__verify_volta, args=())
-            thread.daemon = True
-            thread.start()
-
-        except Exception as ex:
-            self._logger.exception('Caught an exception ' + str(ex))
+        self._verified = False
 
     def get_settings_defaults(self):
         return dict(
-            api_url='http://volta.azuya.studio',  # Volta Endpoint (Temporary. This may change in the future!)
+            api_server='http://volta.azuya.studio',
             api_token='Volta API Token',
             retry=1,
             time_retry=2,
@@ -515,9 +545,6 @@ class VoltaPlugin(octoprint.plugin.SettingsPlugin,
                 pip='https://github.com/azuyalabs/OctoPrint-Volta/archive/{target_version}.zip'
             )
         )
-
-
-__plugin_name__ = 'Volta'
 
 
 def __plugin_load__():
