@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Added an API URL to the configuration allowing for modifying the Volta Server instance (for testing or deployment purposes).
 
 ### Changed
+- Adjusted the validation of submitted messages, as the Volta Server now returns a HTTP 201 response code (as recommended for created resources).
+- Altered the success message so it fits better the description.
 - Replaced the print job success/failure state with a more descriptive status. This makes handling of the print job status easier on the frontend side.
 - Refactored the way the verification to the Volta Server is performed. Now it will check at each (significant) event if verification has already been done or not. Previously it was only executed at startup and save but didn't work correctly (especiall at the 'save' event).
 - Ensured the internal printer_state is initialized early.
